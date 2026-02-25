@@ -7,51 +7,68 @@ const CRYPTO_BOT_TOKEN = '538879:AAmpnB3NCWsxgaFTU0uFEy6LNJwOfeR665G';
 const TG_BOT_TOKEN = '8293377070:AAGBJBMXjQxadiw8qIKRdA1W0DEg-ZlXtoo';
 const CHANNEL_ID = '-1003877323833'; 
 
-const CORS_PROXY = 'https://corsproxy.io/?';
-
 async function createInvoice() {
-  const url = `${CORS_PROXY}https://pay.crypt.bot/api/createInvoice`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
-    },
-    body: JSON.stringify({
-      currency_type: 'fiat',
-      fiat: 'RUB',
-      amount: '100.00',
-      description: 'Доступ навсегда в приватный канал KomaruPromts'
-    })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP Error: ${response.status}`);
+  const targetUrls = [
+    `https://corsproxy.io/?${encodeURIComponent('https://pay.crypt.bot/api/createInvoice')}`,
+    'https://thingproxy.freeboard.io/fetch/https://pay.crypt.bot/api/createInvoice'
+  ];
+
+  let lastError = null;
+
+  for (const url of targetUrls) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
+        },
+        body: JSON.stringify({
+          currency_type: 'fiat',
+          fiat: 'RUB',
+          amount: '100.00',
+          description: 'Доступ навсегда в приватный канал KomaruPromts'
+        })
+      });
+      
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error?.name || data.error?.message || JSON.stringify(data));
+      return data.result; 
+    } catch (err: any) {
+      console.warn(`Proxy ${url} failed:`, err);
+      lastError = err;
+    }
   }
   
-  const data = await response.json();
-  if (!data.ok) throw new Error(data.error?.name || 'API Error');
-  return data.result; 
+  throw new Error(`Ошибка API/CORS: ${lastError?.message || 'Не удалось связаться с CryptoBot'}`);
 }
 
 async function checkInvoice(invoiceId: number) {
-  const url = `${CORS_PROXY}https://pay.crypt.bot/api/getInvoices?invoice_ids=${invoiceId}`;
-  
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
+  const targetUrls = [
+    `https://corsproxy.io/?${encodeURIComponent(`https://pay.crypt.bot/api/getInvoices?invoice_ids=${invoiceId}`)}`,
+    `https://thingproxy.freeboard.io/fetch/https://pay.crypt.bot/api/getInvoices?invoice_ids=${invoiceId}`
+  ];
+
+  for (const url of targetUrls) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
+        }
+      });
+      
+      const data = await response.json();
+      if (!data.ok) continue;
+      
+      const invoice = data.result.items[0];
+      return invoice?.status === 'paid';
+    } catch (e) {
+      console.warn(`Check proxy ${url} failed`, e);
     }
-  });
+  }
   
-  if (!response.ok) return false;
-  
-  const data = await response.json();
-  if (!data.ok) return false;
-  
-  const invoice = data.result.items[0];
-  return invoice?.status === 'paid';
+  return false;
 }
 
 async function createTgLink() {
@@ -169,8 +186,8 @@ export function App() {
       setInvoice(inv);
       setStep('modal');
     } catch (e: any) {
-      console.error(e);
-      setErrorMsg('Ошибка создания счета. Попробуйте позже.');
+      console.error("BUY ERROR:", e);
+      setErrorMsg(e.message || 'Ошибка создания счета. Попробуйте позже.');
       setStep('idle');
     }
   };
