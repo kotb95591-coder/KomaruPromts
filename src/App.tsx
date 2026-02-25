@@ -1,424 +1,265 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import QRCode from 'react-qr-code';
 
-// --- API LOGIC ---
-const CRYPTO_BOT_TOKEN = '538879:AAmpnB3NCWsxgaFTU0uFEy6LNJwOfeR665G';
-const TG_BOT_TOKEN = '8293377070:AAGBJBMXjQxadiw8qIKRdA1W0DEg-ZlXtoo';
-const CHANNEL_ID = '-1003877323833'; 
+const API_BASE = '';
 
-async function createInvoice() {
-  const targetUrls = [
-    `https://corsproxy.io/?${encodeURIComponent('https://pay.crypt.bot/api/createInvoice')}`,
-    'https://thingproxy.freeboard.io/fetch/https://pay.crypt.bot/api/createInvoice'
-  ];
-
-  let lastError = null;
-
-  for (const url of targetUrls) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
-        },
-        body: JSON.stringify({
-          currency_type: 'fiat',
-          fiat: 'RUB',
-          amount: '100.00',
-          description: 'Доступ навсегда в приватный канал KomaruPromts'
-        })
-      });
-      
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.error?.name || data.error?.message || JSON.stringify(data));
-      return data.result; 
-    } catch (err: any) {
-      console.warn(`Proxy ${url} failed:`, err);
-      lastError = err;
-    }
+const parseResponse = async (response: Response) => {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, message: text || 'Invalid response' };
   }
-  
-  throw new Error(`Ошибка API/CORS: ${lastError?.message || 'Не удалось связаться с CryptoBot'}`);
-}
+};
 
-async function checkInvoice(invoiceId: number) {
-  const targetUrls = [
-    `https://corsproxy.io/?${encodeURIComponent(`https://pay.crypt.bot/api/getInvoices?invoice_ids=${invoiceId}`)}`,
-    `https://thingproxy.freeboard.io/fetch/https://pay.crypt.bot/api/getInvoices?invoice_ids=${invoiceId}`
-  ];
+const AnimatedBackground = () => (
+  <div className="fixed inset-0 z-0 bg-black overflow-hidden pointer-events-none">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03)_0%,transparent_100%)]" />
+    <motion.div
+      animate={{ rotate: 360 }}
+      transition={{ duration: 150, repeat: Infinity, ease: "linear" }}
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-white/5 rounded-full"
+    />
+    <motion.div
+      animate={{ rotate: -360 }}
+      transition={{ duration: 200, repeat: Infinity, ease: "linear" }}
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-white/5 rounded-full"
+    />
+  </div>
+);
 
-  for (const url of targetUrls) {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Crypto-Pay-API-Token': CRYPTO_BOT_TOKEN,
-        }
-      });
-      
-      const data = await response.json();
-      if (!data.ok) continue;
-      
-      const invoice = data.result.items[0];
-      return invoice?.status === 'paid';
-    } catch (e) {
-      console.warn(`Check proxy ${url} failed`, e);
-    }
-  }
-  
-  return false;
-}
-
-async function createTgLink() {
-  const expireDate = Math.floor(Date.now() / 1000) + 3600; // 1 hour expiration
-  const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/createChatInviteLink`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      chat_id: CHANNEL_ID,
-      expire_date: expireDate,
-      member_limit: 1,
-      name: 'Komaru VIP'
-    })
-  });
-  
-  const data = await response.json();
-  if (!data.ok) {
-    console.error("TG API Error:", data);
-    throw new Error(`TG API Error: ${data.description}`);
-  }
-  
-  return data.result.invite_link;
-}
-
-// --- COMPONENTS ---
-function AnimatedBackground() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 bg-black" style={{ contain: 'strict' }}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#000000_100%)] z-10 will-change-transform" />
-
-      <svg
-        className="absolute w-full h-full opacity-[0.15]"
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 1000 1000"
-        preserveAspectRatio="xMidYMid slice"
-        style={{ willChange: "transform" }}
-      >
-        <defs>
-          <linearGradient id="luxury-silver" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0" />
-            <stop offset="50%" stopColor="#FFFFFF" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="luxury-gray" x1="100%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#888888" stopOpacity="0" />
-            <stop offset="50%" stopColor="#888888" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#888888" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        <motion.g
-          animate={{ rotate: 360 }}
-          transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "50% 50%", willChange: "transform" }}
-        >
-          <circle cx="500" cy="500" r="300" fill="none" stroke="url(#luxury-silver)" strokeWidth="1" strokeDasharray="4 8" />
-          <circle cx="500" cy="500" r="450" fill="none" stroke="url(#luxury-gray)" strokeWidth="1.5" />
-          <circle cx="500" cy="500" r="600" fill="none" stroke="url(#luxury-silver)" strokeWidth="1" strokeDasharray="10 20" />
-        </motion.g>
-
-        <motion.path
-          d="M -200 800 Q 500 200 1200 800"
-          fill="none"
-          stroke="url(#luxury-silver)"
-          strokeWidth="2"
-          animate={{ opacity: [0.1, 0.4, 0.1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          style={{ willChange: "opacity" }}
-        />
-
-        <motion.path
-          d="M -200 200 Q 500 800 1200 200"
-          fill="none"
-          stroke="url(#luxury-gray)"
-          strokeWidth="1.5"
-          animate={{ opacity: [0.1, 0.3, 0.1] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          style={{ willChange: "opacity" }}
-        />
-        
-        <motion.line 
-          x1="0" y1="200" x2="1000" y2="800"
-          stroke="url(#luxury-silver)" strokeWidth="1"
-          animate={{ opacity: [0.05, 0.2, 0.05] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          style={{ willChange: "opacity" }}
-        />
-        <motion.line 
-          x1="1000" y1="200" x2="0" y2="800"
-          stroke="url(#luxury-gray)" strokeWidth="1.5"
-          animate={{ opacity: [0.05, 0.15, 0.05] }}
-          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-          style={{ willChange: "opacity" }}
-        />
-      </svg>
-    </div>
-  );
-}
+const formatError = (message: string) => `Ошибка: ${message}`;
 
 export function App() {
-  const [step, setStep] = useState<'idle' | 'creating' | 'modal' | 'checking' | 'success'>('idle');
-  const [inviteLink, setInviteLink] = useState('');
-  const [invoice, setInvoice] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [step, setStep] = useState<'idle' | 'loading' | 'payment' | 'checking' | 'success'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [invoice, setInvoice] = useState<{ invoice_id: number; pay_url: string } | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
 
-  const handleBuy = async () => {
-    setStep('creating');
-    setErrorMsg('');
+  const createInvoice = async () => {
+    setError(null);
+    setStep('loading');
     try {
-      const inv = await createInvoice();
-      setInvoice(inv);
-      setStep('modal');
-    } catch (e: any) {
-      console.error("BUY ERROR:", e);
-      setErrorMsg(e.message || 'Ошибка создания счета. Попробуйте позже.');
+      const response = await fetch(`${API_BASE}/api/invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.message || 'Не удалось создать счет');
+      }
+      setInvoice({ invoice_id: data.invoice_id, pay_url: data.pay_url });
+      setStep('payment');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка сети';
+      setError(formatError(message));
       setStep('idle');
     }
   };
 
-  const handleCheckPay = async () => {
-    if (!invoice) return;
-    setStep('checking');
-    setErrorMsg('');
-    try {
-      const isPaid = await checkInvoice(invoice.invoice_id);
-      if (isPaid) {
-        const link = await createTgLink();
-        setInviteLink(link);
-        setStep('success');
-      } else {
-        setErrorMsg('Счет еще не оплачен');
-        setTimeout(() => setErrorMsg(''), 3000);
-        setStep('modal');
-      }
-    } catch (e: any) {
-      console.error(e);
-      setErrorMsg('Ошибка проверки. Попробуйте снова.');
-      setTimeout(() => setErrorMsg(''), 3000);
-      setStep('modal');
+  const checkPayment = async () => {
+    if (!invoice?.invoice_id) {
+      setError('Счет не найден. Создайте новый.');
+      setStep('idle');
+      return;
     }
-  };
 
-  const openCryptoBot = () => {
-    if (invoice && invoice.pay_url) {
-      window.open(invoice.pay_url, '_blank');
+    setError(null);
+    setStep('checking');
+    try {
+      const response = await fetch(`${API_BASE}/api/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_id: invoice.invoice_id })
+      });
+      const data = await parseResponse(response);
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.message || 'Не удалось проверить оплату');
+      }
+
+      if (!data.paid) {
+        setError('Счет еще не оплачен. Пожалуйста, завершите оплату в боте.');
+        setStep('payment');
+        return;
+      }
+
+      setInviteLink(data.invite_link);
+      setStep('success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ошибка сети';
+      setError(formatError(message));
+      setStep('payment');
     }
   };
 
   const copyToClipboard = () => {
+    if (!inviteLink) return;
     navigator.clipboard.writeText(inviteLink);
-    const btn = document.getElementById('copy-btn');
-    if (btn) {
-      const originalText = btn.innerHTML;
-      btn.innerHTML = 'Скопировано!';
-      setTimeout(() => { btn.innerHTML = originalText; }, 2000);
-    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans overflow-hidden flex items-center justify-center relative select-none">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 font-sans selection:bg-white/20">
       <AnimatedBackground />
 
-      <div className="relative z-10 w-full max-w-md px-4 py-8">
-        
-        <motion.div
-          initial={{ y: -30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center mb-10"
-        >
-          <h1 className="text-4xl font-black tracking-[0.2em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-            KOMARU
-            <span className="block text-xl tracking-[0.4em] text-white/40 mt-1 font-light drop-shadow-none">PROMTS</span>
-          </h1>
-        </motion.div>
-
+      <main className="relative z-10 w-full max-w-md">
         <AnimatePresence mode="wait">
-          
-          {(step === 'idle' || step === 'creating') && (
+          {step === 'idle' && (
             <motion.div
-              key="card"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="bg-[#080808]/90 backdrop-blur-md border border-white/10 p-8 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.8)] relative overflow-hidden"
+              key="main-card"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl backdrop-blur-md shadow-2xl"
             >
-              <div className="absolute -top-20 -right-20 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-light tracking-widest mb-2 uppercase text-white">Komaru Promts</h1>
+                <div className="h-[1px] w-12 bg-white/20 mx-auto my-4"></div>
+                <p className="text-neutral-400 text-sm tracking-wide uppercase">Закрытый клуб</p>
+              </div>
 
-              <div className="flex justify-between items-center mb-6 relative z-10">
-                <div>
-                  <h2 className="text-white/40 text-sm tracking-widest uppercase mb-1 font-medium">Тариф</h2>
-                  <p className="text-2xl font-semibold tracking-wide text-white">Вход навсегда</p>
+              <div className="space-y-6 mb-8">
+                <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                  <span className="text-neutral-400">Тариф</span>
+                  <span className="font-medium tracking-wide text-white">Вход навсегда</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-light tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">100<span className="text-lg text-white/50 ml-1">RUB</span></p>
+                <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                  <span className="text-neutral-400">Доступ</span>
+                  <span className="font-medium text-white">Приватный Telegram</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                  <span className="text-neutral-400">Цена</span>
+                  <span className="text-xl font-medium tracking-wide text-white">100 RUB</span>
                 </div>
               </div>
 
-              <div className="space-y-4 mb-8 text-white/70 font-light text-sm relative z-10">
-                <div className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" /></svg>
-                  <span>Доступ в приватный Telegram канал</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <svg className="w-5 h-5 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" /></svg>
-                  <span>Оплачиваете один раз, пользуетесь всегда</span>
-                </div>
-              </div>
-
-              {errorMsg && (
-                <div className="mb-4 text-center text-sm text-white/60 bg-white/5 py-2 rounded-lg border border-white/10">
-                  {errorMsg}
+              {error && (
+                <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                  {error}
                 </div>
               )}
 
               <button
-                onClick={handleBuy}
-                disabled={step === 'creating'}
-                className="w-full relative z-10 bg-white text-black py-4 rounded-xl font-bold tracking-widest uppercase text-sm hover:bg-gray-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] disabled:opacity-50 mb-4"
+                onClick={createInvoice}
+                className="w-full bg-white text-black py-4 rounded-xl font-medium tracking-widest uppercase hover:bg-neutral-200 transition-colors duration-300"
               >
-                {step === 'creating' ? 'Создание счета...' : 'Оплатить доступ'}
+                Оплатить доступ
               </button>
-
             </motion.div>
           )}
 
-          {(step === 'modal' || step === 'checking') && (
+          {step === 'loading' && (
             <motion.div
-              key="modal"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0A0A0A] border border-[#2AABEE]/20 p-8 rounded-3xl shadow-2xl relative overflow-hidden"
+              key="loading-card"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl flex flex-col items-center justify-center min-h-[400px]"
             >
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-[#2AABEE]/10 blur-3xl pointer-events-none" />
+              <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin mb-6"></div>
+              <p className="text-neutral-400 tracking-widest uppercase text-sm">Создание счета...</p>
+            </motion.div>
+          )}
 
-              <div className="text-center relative z-10 mb-6">
-                <div className="w-14 h-14 bg-[#2AABEE]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#2AABEE]/30 shadow-[0_0_15px_rgba(42,171,238,0.15)]">
-                  <svg className="w-8 h-8 text-[#2AABEE]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.94z"/></svg>
+          {step === 'payment' && invoice && (
+            <motion.div
+              key="payment-card"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0a0a0a] border border-blue-500/20 p-8 rounded-2xl shadow-[0_0_40px_rgba(59,130,246,0.1)] relative overflow-hidden"
+            >
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+                  <span className="text-2xl text-blue-400">₽</span>
                 </div>
-                <h2 className="text-xl font-semibold text-white">Оплата через CryptoBot</h2>
-                <p className="text-white/50 text-sm mt-1">Отправьте точную сумму или откройте приложение</p>
+                <h2 className="text-2xl font-light tracking-wider mb-2 text-white">Оплата счета</h2>
+                <p className="text-neutral-400 text-sm">Telegram CryptoBot</p>
               </div>
 
-              {step === 'modal' ? (
-                <>
-                  <div className="bg-white p-3 rounded-2xl mx-auto w-fit mb-6 shadow-[0_0_20px_rgba(255,255,255,0.1)] cursor-pointer" onClick={openCryptoBot} title="Нажмите, чтобы открыть в Telegram">
-                    <QRCode value={invoice?.pay_url || ''} size={160} level="L" />
-                  </div>
-
-                  <div className="bg-[#111] border border-white/5 rounded-xl p-4 mb-6 text-sm">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-white/40 font-light">Платформа</span>
-                      <span className="text-white font-medium">Telegram CryptoBot</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/40 font-light">Счет #</span>
-                      <span className="text-white font-medium">{invoice?.invoice_id}</span>
-                    </div>
-                    <div className="flex justify-between mt-2 pt-2 border-t border-white/5">
-                      <span className="text-white/40 font-light">К оплате</span>
-                      <span className="text-white font-bold">{invoice?.amount || '100'} {invoice?.asset || 'RUB'}</span>
-                    </div>
-                  </div>
-
-                  {errorMsg && (
-                    <div className="mb-4 text-center text-sm font-medium text-white/80 bg-white/10 py-2 rounded-lg border border-white/20">
-                      {errorMsg}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={openCryptoBot}
-                      className="w-full py-3.5 rounded-xl font-medium tracking-wide border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-colors text-sm uppercase"
-                    >
-                      Оплатить в приложении
-                    </button>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => setStep('idle')}
-                        className="flex-1 py-4 rounded-xl font-medium tracking-wide border border-white/10 text-white/70 hover:bg-white/5 transition-colors text-sm uppercase"
-                      >
-                        Отмена
-                      </button>
-                      <button
-                        onClick={handleCheckPay}
-                        className="flex-1 py-4 rounded-xl font-medium tracking-wide bg-[#2AABEE] text-white hover:bg-[#2AABEE]/90 transition-colors shadow-[0_0_15px_rgba(42,171,238,0.3)] text-sm uppercase"
-                      >
-                        Я оплатил
-                      </button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="py-12 text-center relative z-10">
-                  <div className="w-16 h-16 border-[3px] border-[#2AABEE]/20 border-t-[#2AABEE] rounded-full animate-spin mx-auto mb-6 shadow-[0_0_15px_rgba(42,171,238,0.2)]" />
-                  <h3 className="text-lg font-medium text-white mb-2">Проверка оплаты...</h3>
-                  <p className="text-white/40 text-sm font-light">Пожалуйста, подождите.</p>
+              {error && (
+                <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                  {error}
                 </div>
               )}
+
+              <div className="bg-black border border-white/10 p-4 rounded-xl text-center mb-6">
+                <p className="text-neutral-500 text-xs uppercase tracking-wider mb-1">Сумма к оплате</p>
+                <p className="text-2xl font-medium text-white">100 RUB</p>
+                <p className="text-xs text-neutral-500 mt-2">ID: {invoice.invoice_id}</p>
+              </div>
+
+              <a
+                href={invoice.pay_url}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full text-center bg-[#2AABEE] text-white py-4 rounded-xl font-medium tracking-wide hover:bg-[#2298D6] transition-colors duration-300 mb-4"
+              >
+                Открыть счет в боте
+              </a>
+
+              <button
+                onClick={checkPayment}
+                className="w-full bg-white/5 text-white py-4 rounded-xl font-medium tracking-wide hover:bg-white/10 transition-colors duration-300 border border-white/10"
+              >
+                Я оплатил
+              </button>
             </motion.div>
           )}
 
-          {step === 'success' && (
+          {step === 'checking' && (
             <motion.div
-              key="success"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-[#080808]/90 backdrop-blur-md border border-white/10 p-8 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.8)] text-center relative overflow-hidden"
+              key="checking-card"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl flex flex-col items-center justify-center min-h-[400px]"
             >
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin mb-6"></div>
+              <p className="text-neutral-400 tracking-widest uppercase text-sm">Проверка оплаты...</p>
+            </motion.div>
+          )}
 
-              <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 relative z-10 border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]">
-                <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" /></svg>
-              </div>
-              
-              <h2 className="text-2xl font-semibold mb-2 text-white relative z-10 tracking-wide">Оплата успешна</h2>
-              <p className="text-white/50 text-sm mb-8 font-light relative z-10">
-                Ваша персональная ссылка сгенерирована. Добро пожаловать.
-              </p>
-
-              <div className="relative z-10 group">
-                <div className="absolute -inset-0.5 bg-white/10 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
-                <div className="bg-[#111] border border-white/10 rounded-xl p-4 mb-6 relative flex items-center justify-between">
-                  <span className="text-white font-mono text-sm truncate mr-4 tracking-wider">{inviteLink}</span>
-                  <button 
-                    id="copy-btn"
-                    onClick={copyToClipboard}
-                    className="px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap"
-                  >
-                    Копировать
-                  </button>
-                </div>
+          {step === 'success' && inviteLink && (
+            <motion.div
+              key="success-card"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-[#0a0a0a] border border-white/10 p-8 rounded-2xl text-center relative overflow-hidden"
+            >
+              <div className="w-20 h-20 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-white/40 text-xs font-medium relative z-10">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <h2 className="text-2xl font-light tracking-wider mb-2">Доступ открыт</h2>
+              <p className="text-neutral-400 text-sm mb-8">Ваша персональная ссылка сгенерирована.</p>
+
+              <div className="bg-black border border-white/10 p-4 rounded-xl mb-6">
+                <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Ваша ссылка</p>
+                <p className="text-white font-mono text-sm break-all select-all">{inviteLink}</p>
+              </div>
+
+              <div className="flex items-center justify-center space-x-2 text-sm text-neutral-400 mb-8">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 <span>Внимание: Ссылка работает 1 час (1 активация)</span>
               </div>
+
+              <button
+                onClick={copyToClipboard}
+                className="w-full bg-white text-black py-4 rounded-xl font-medium tracking-widest uppercase hover:bg-neutral-200 transition-colors duration-300"
+              >
+                {copied ? 'Скопировано!' : 'Копировать'}
+              </button>
             </motion.div>
           )}
-
         </AnimatePresence>
-      </div>
+      </main>
     </div>
   );
 }
